@@ -301,6 +301,7 @@ func (m *model) Update(msg bbt.Msg) (_ bbt.Model, cmd bbt.Cmd) {
 		m.chat.SetHeight(msg.Height - m.textarea.Height() - m.help.Height())
 
 		m.viewport.SetWidth(msg.Width)
+		m.viewport.SetHeight(m.chat.Height())
 
 		m.textarea.SetWidth(msg.Width)
 	case bbt.KeyMsg:
@@ -316,6 +317,8 @@ func (m *model) Update(msg bbt.Msg) (_ bbt.Model, cmd bbt.Cmd) {
 			return m, m.Bye()
 		case "ctrl+l":
 			m.chat.Reset()
+			m.viewport.SetContent(m.chat.String())
+			m.viewport.SetHeight(m.chat.Height())
 			return m, nil
 		case "ctrl+z":
 			return m, bbt.Suspend
@@ -346,6 +349,8 @@ func (m *model) Update(msg bbt.Msg) (_ bbt.Model, cmd bbt.Cmd) {
 				}
 			default:
 				m.chat.Add(value)
+				m.viewport.SetContent(m.chat.String())
+				m.viewport.SetHeight(m.chat.Height())
 				m.viewport.GotoBottom()
 				cmd = m.Send()
 			}
@@ -379,6 +384,8 @@ func (m *model) Update(msg bbt.Msg) (_ bbt.Model, cmd bbt.Cmd) {
 
 			if r.Message.Content != "" {
 				m.chat.Update(r.Message.Content)
+				m.viewport.SetContent(m.chat.String())
+				m.viewport.SetHeight(m.chat.Height())
 				m.viewport.GotoBottom()
 			}
 
@@ -409,11 +416,6 @@ func (m *model) Update(msg bbt.Msg) (_ bbt.Model, cmd bbt.Cmd) {
 func (m *model) View() string {
 	views := make([]string, 0, 3)
 	if len(m.chat.msgs) > 0 {
-		m.viewport.SetContent(m.chat.String())
-		if m.chat.Height() > m.viewport.Height() {
-			m.viewport.SetHeight(m.chat.Height())
-		}
-
 		views = slices.Insert(views, 0, m.viewport.View())
 	}
 

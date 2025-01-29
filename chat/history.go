@@ -123,14 +123,16 @@ func (h *History) PreviousLine() string {
 }
 
 func (h *History) Push(s string) {
-	h.PushBack(s)
-	if h.size > h.maxSize {
-		h.PopFront()
-	}
+	if h.tail == nil || h.tail.t != s {
+		h.PushBack(s)
+		if h.size > h.maxSize {
+			h.PopFront()
+		}
 
-	if h.saveOnPush {
-		SaveToFile(*h)
-	}
+		if h.saveOnPush {
+			SaveToFile(*h)
+		}
 
-	h.cur = nil
+		h.cur = nil
+	}
 }
