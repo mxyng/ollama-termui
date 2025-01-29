@@ -180,12 +180,7 @@ func (m Help) View() string {
 }
 
 func (m Help) ShortHelp() []key.Binding {
-	keys := []key.Binding{m.Help, key.Binding{}, m.Quit}
-	if m.showCancel {
-		keys[1] = m.Cancel
-	}
-
-	return keys
+	return []key.Binding{m.Help}
 }
 
 func (m Help) FullHelp() [][]key.Binding {
@@ -316,9 +311,11 @@ func (m *model) Update(msg bbt.Msg) (_ bbt.Model, cmd bbt.Cmd) {
 		case "ctrl+d":
 			return m, m.Bye()
 		case "ctrl+l":
-			m.chat.Reset()
-			m.viewport.SetContent(m.chat.String())
-			m.viewport.SetHeight(m.chat.Height())
+			if !m.inProgress {
+				m.chat.Reset()
+				m.viewport.SetContent(m.chat.String())
+				m.viewport.SetHeight(m.chat.Height())
+			}
 			return m, nil
 		case "ctrl+z":
 			return m, bbt.Suspend
@@ -421,13 +418,41 @@ func (m *model) View() string {
 
 	if m.inProgress {
 		// truncate the input area and add the spinner
-		maxWidth := lipgloss.Width(m.textarea.View()) - lipgloss.Width(m.spinner.View())
+		maxWidth := m.viewport.Width() - lipgloss.Width(m.spinner.View())
 		views = append(views, lipgloss.NewStyle().MaxWidth(maxWidth).Render(m.textarea.View())+m.spinner.View())
 	} else {
 		views = append(views, m.textarea.View())
 	}
 
-	views = append(views, m.help.View())
+	footerLeft := "Top"
+	if scroll := m.viewport.ScrollPercent(); scroll >= 1.0 {
+		footerLeft = "Bot"
+	} else if scroll > 0.0 {
+		footerLeft = fmt.Sprintf("%.0f%%", scroll*100)
+	}
+
+	footer := m.help.View()
+	if !m.help.ShowAll {
+		footerLeft = m.help.Styles.ShortDesc.Render(footerLeft)
+
+		footerRight := footer
+
+		footerCenter := m.name
+		footerCenter = lipgloss.PlaceHorizontal(
+			m.viewport.Width()-lipgloss.Width(footerLeft)-lipgloss.Width(footerRight),
+			lipgloss.Center,
+			m.help.Styles.ShortKey.Render(footerCenter),
+		)
+
+		footer = lipgloss.JoinHorizontal(
+			lipgloss.Top,
+			footerLeft,
+			footerCenter,
+			footerRight,
+		)
+	}
+
+	views = append(views, footer)
 	return lipgloss.JoinVertical(lipgloss.Right, views...)
 }
 

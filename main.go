@@ -28,8 +28,10 @@ func main() {
 		os.Exit(1)
 	}
 
-	if err := os.Truncate("debug.log", 0); err != nil {
+	if f, err := os.Create("debug.log"); err != nil {
 		panic(err)
+	} else {
+		f.Close()
 	}
 
 	f, err := bbt.LogToFile("debug.log", "debug")
