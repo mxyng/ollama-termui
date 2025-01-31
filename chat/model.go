@@ -9,6 +9,7 @@ import (
 	"net/http"
 	"slices"
 	"strings"
+	"time"
 
 	"github.com/charmbracelet/bubbles/v2/cursor"
 	"github.com/charmbracelet/bubbles/v2/help"
@@ -26,6 +27,7 @@ type model struct {
 
 	inProgress bool
 	chat       Chat
+	metrics    Metrics
 
 	viewport viewport.Model
 	textarea textarea.Model
@@ -38,11 +40,10 @@ var _ bbt.Model = (*model)(nil)
 
 func New(host, name string) *model {
 	m := model{
-		host: host,
-		name: name,
-		chat: Chat{
-			history: LoadFromFile(1000, true),
-		},
+		host:    host,
+		name:    name,
+		chat:    Chat{history: LoadFromFile(1000, true)},
+		metrics: Metrics{round: 100 * time.Millisecond},
 
 		viewport: viewport.New(),
 		textarea: textarea.New(),
@@ -134,6 +135,7 @@ func (m *model) Update(msg bbt.Msg) (_ bbt.Model, cmd bbt.Cmd) {
 		case "ctrl+l":
 			if !m.inProgress {
 				m.chat.Reset()
+				m.metrics.Reset()
 				m.viewport.SetContent(m.chat.String())
 				m.viewport.SetHeight(m.chat.Height())
 			}
@@ -166,6 +168,7 @@ func (m *model) Update(msg bbt.Msg) (_ bbt.Model, cmd bbt.Cmd) {
 					m.chat.history.saveOnPush = false
 				}
 			default:
+				m.metrics.Reset()
 				m.chat.Add(value)
 				m.viewport.SetContent(m.chat.String())
 				m.viewport.SetHeight(m.chat.Height())
@@ -191,7 +194,8 @@ func (m *model) Update(msg bbt.Msg) (_ bbt.Model, cmd bbt.Cmd) {
 		scanner := bufio.NewScanner(msg.ReadCloser)
 		if m.inProgress && scanner.Scan() {
 			var r struct {
-				Message chatMsg `json:"message"`
+				Message   chatMsg   `json:"message"`
+				CreatedAt time.Time `json:"created_at"`
 			}
 
 			if err := json.Unmarshal(scanner.Bytes(), &r); err != nil {
@@ -205,6 +209,7 @@ func (m *model) Update(msg bbt.Msg) (_ bbt.Model, cmd bbt.Cmd) {
 				m.viewport.SetContent(m.chat.String())
 				m.viewport.SetHeight(m.chat.Height())
 				m.viewport.GotoBottom()
+				m.metrics.Add(r.CreatedAt)
 			}
 
 			return m, func() bbt.Msg {
@@ -250,6 +255,10 @@ func (m *model) View() string {
 		footerLeft = "Bot"
 	} else if scroll > 0.0 {
 		footerLeft = fmt.Sprintf("%.0f%%", scroll*100)
+	}
+
+	if rate := m.metrics.Rate(); rate > 0 {
+		footerLeft = footerLeft + fmt.Sprintf(" %.1f tokens/s", rate)
 	}
 
 	footer := m.help.View()
