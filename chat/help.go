@@ -16,8 +16,6 @@ type Help struct {
 	Cancel      key.Binding
 	Suspend     key.Binding
 	Quit        key.Binding
-
-	showCancel bool
 }
 
 func (m Help) Update(msg bbt.Msg) (_ Help, cmd bbt.Cmd) {

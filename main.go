@@ -7,8 +7,8 @@ import (
 	"path/filepath"
 
 	bbt "github.com/charmbracelet/bubbletea/v2"
-
 	"github.com/mxyng/ollama-termui/chat"
+	"github.com/mxyng/ollama-termui/pull"
 )
 
 func main() {
@@ -39,6 +39,10 @@ func main() {
 		panic(err)
 	}
 	defer f.Close()
+
+	if _, err := bbt.NewProgram(pull.New(baseUrl, flag.Arg(0))).Run(); err != nil {
+		panic(err)
+	}
 
 	if _, err := bbt.NewProgram(chat.New(baseUrl, flag.Arg(0))).Run(); err != nil {
 		panic(err)

@@ -64,7 +64,7 @@ func LoadFromFile(maxSize int, saveOnPush bool) History {
 		return h
 	}
 
-	f, err := os.OpenFile(filepath.Join(home, ".ollama", "history"), os.O_RDONLY|os.O_CREATE, 0600)
+	f, err := os.OpenFile(filepath.Join(home, ".ollama", "history"), os.O_RDONLY|os.O_CREATE, 0o600)
 	if err != nil {
 		return h
 	}
@@ -84,7 +84,7 @@ func SaveToFile(h History) {
 		return
 	}
 
-	f, err := os.OpenFile(filepath.Join(home, ".ollama", "history"), os.O_WRONLY|os.O_CREATE|os.O_TRUNC, 0600)
+	f, err := os.OpenFile(filepath.Join(home, ".ollama", "history"), os.O_WRONLY|os.O_CREATE|os.O_TRUNC, 0o600)
 	if err != nil {
 		return
 	}

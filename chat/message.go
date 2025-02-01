@@ -1,9 +1,9 @@
 package chat
 
 import (
-	"io"
 	"iter"
 	"strings"
+	"sync"
 
 	"github.com/charmbracelet/glamour"
 	"github.com/charmbracelet/lipgloss/v2"
@@ -30,16 +30,13 @@ func (m chatMsg) Render(contentRenderer *glamour.TermRenderer) string {
 	return m.roleStyle.Render() + content
 }
 
-type chatResponseMsg struct {
-	io.ReadCloser
-}
-
 type exchange struct {
 	User, Assistant     chatMsg
 	Complete, Cancelled bool
 }
 
 type Chat struct {
+	sync.Mutex
 	msgs []exchange
 
 	width, height int
@@ -57,11 +54,14 @@ func (m *Chat) SetHeight(h int) {
 	m.build()
 }
 
-func (m Chat) Height() int {
+func (m *Chat) Height() int {
 	return min(m.height, lipgloss.Height(m.sb.String()))
 }
 
 func (m *Chat) Add(s string) {
+	m.Lock()
+	defer m.Unlock()
+
 	m.msgs = append(m.msgs, exchange{
 		User: chatMsg{
 			Role:      "user",
@@ -80,23 +80,35 @@ func (m *Chat) Add(s string) {
 }
 
 func (m *Chat) Update(s string) {
+	m.Lock()
+	defer m.Unlock()
+
 	m.msgs[len(m.msgs)-1].Assistant.Content += s
 	m.build()
 }
 
 func (m *Chat) Complete() {
+	m.Lock()
+	defer m.Unlock()
+
 	if len(m.msgs) > 0 {
 		m.msgs[len(m.msgs)-1].Complete = true
 	}
 }
 
 func (m *Chat) Cancel() {
+	m.Lock()
+	defer m.Unlock()
+
 	if len(m.msgs) > 0 && !m.msgs[len(m.msgs)-1].Complete {
 		m.msgs[len(m.msgs)-1].Cancelled = true
 	}
 }
 
 func (m *Chat) Reset() {
+	m.Lock()
+	defer m.Unlock()
+
 	m.msgs = nil
 	m.build()
 }
@@ -117,11 +129,14 @@ func (m *Chat) build() {
 	}
 }
 
-func (m Chat) String() string {
+func (m *Chat) String() string {
 	return m.sb.String()
 }
 
-func (m Chat) Messages() iter.Seq[chatMsg] {
+func (m *Chat) Messages() iter.Seq[chatMsg] {
+	m.Lock()
+	defer m.Unlock()
+
 	return func(yield func(chatMsg) bool) {
 		for _, msg := range m.msgs {
 			if msg.Cancelled {

@@ -1,11 +1,8 @@
 package chat
 
 import (
-	"bufio"
-	"bytes"
 	"encoding/json"
 	"fmt"
-	"io"
 	"net/http"
 	"slices"
 	"strings"
@@ -19,11 +16,12 @@ import (
 	"github.com/charmbracelet/bubbles/v2/viewport"
 	bbt "github.com/charmbracelet/bubbletea/v2"
 	"github.com/charmbracelet/lipgloss/v2"
+	"github.com/mxyng/ollama-termui/client"
 )
 
 type model struct {
-	host string
-	name string
+	client client.Client
+	name   string
 
 	inProgress bool
 	chat       Chat
@@ -40,7 +38,7 @@ var _ bbt.Model = (*model)(nil)
 
 func New(host, name string) *model {
 	m := model{
-		host:    host,
+		client:  client.New(host),
 		name:    name,
 		chat:    Chat{history: LoadFromFile(1000, true)},
 		metrics: Metrics{round: 100 * time.Millisecond},
@@ -103,12 +101,12 @@ func New(host, name string) *model {
 	return &m
 }
 
+type chat struct{}
+
 // Init implements tea.Model.
 func (m *model) Init() (bbt.Model, bbt.Cmd) {
 	return m, m.Send()
 }
-
-type errMsg error
 
 // Update implements tea.Model.
 func (m *model) Update(msg bbt.Msg) (_ bbt.Model, cmd bbt.Cmd) {
@@ -185,20 +183,19 @@ func (m *model) Update(msg bbt.Msg) (_ bbt.Model, cmd bbt.Cmd) {
 		}
 
 		return m, cmd
-	case errMsg:
+	case client.ErrMsg:
 		return m, bbt.Sequence(
 			bbt.Printf("Error: %s", msg),
 			m.Bye(),
 		)
-	case chatResponseMsg:
-		scanner := bufio.NewScanner(msg.ReadCloser)
-		if m.inProgress && scanner.Scan() {
+	case *client.Response[chat]:
+		if m.inProgress && msg.Scan() {
 			var r struct {
 				Message   chatMsg   `json:"message"`
 				CreatedAt time.Time `json:"created_at"`
 			}
 
-			if err := json.Unmarshal(scanner.Bytes(), &r); err != nil {
+			if err := json.Unmarshal(msg.Bytes(), &r); err != nil {
 				return m, func() bbt.Msg {
 					return err
 				}
@@ -289,36 +286,13 @@ func (m *model) View() string {
 func (m *model) Send() bbt.Cmd {
 	m.inProgress = true
 	m.textarea.Blur()
-	return bbt.Batch(func() bbt.Msg {
-		var b bytes.Buffer
-		if err := json.NewEncoder(&b).Encode(map[string]any{
+	return bbt.Batch(
+		m.spinner.Tick,
+		client.Send[chat](m.client, http.MethodPost, "/api/chat", map[string]any{
 			"model":    m.name,
 			"messages": slices.Collect(m.chat.Messages()),
-		}); err != nil {
-			return err
-		}
-
-		request, err := http.NewRequest("POST", m.host+"/api/chat", &b)
-		if err != nil {
-			return err
-		}
-
-		response, err := http.DefaultClient.Do(request)
-		if err != nil {
-			return err
-		}
-
-		if response.StatusCode >= http.StatusBadRequest {
-			bts, err := io.ReadAll(response.Body)
-			if err != nil {
-				return fmt.Errorf("Error: %s", response.Status)
-			}
-
-			return fmt.Errorf("Error: %s", bts)
-		}
-
-		return chatResponseMsg{response.Body}
-	}, m.spinner.Tick)
+		}),
+	)
 }
 
 func (m *model) Bye() bbt.Cmd {

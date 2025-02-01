@@ -37,8 +37,6 @@ func (m *Metrics) After() iter.Seq[int] {
 				break
 			}
 		}
-
-		return
 	}
 }
 
@@ -53,7 +51,7 @@ func Reduce[T comparable](s iter.Seq[T], fn func(_, _ T) T) (t T) {
 	return t
 }
 
-func (m Metrics) Rate() (f float64) {
+func (m *Metrics) Rate() (f float64) {
 	if m.buckets.size > 1 {
 		f := Reduce(m.After(), func(sum, v int) int {
 			return sum + v
